@@ -56,12 +56,10 @@ const ProfileCreation: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-
       if (file.size > 5 * 1024 * 1024) {
         setError("Profile picture must be less than 5MB");
         return;
       }
-
       setFormData((prevData) => ({ ...prevData, profilePicture: file }));
 
       const reader = new FileReader();
@@ -90,25 +88,36 @@ const ProfileCreation: React.FC = () => {
       setError("");
       setLoading(true);
 
-      const formPayload = new FormData();
+      // const formPayload = new FormData();
+
+      const formPayload = {};
+// for (let [key, value] of formPayload.entries()) {
+//   jsonObject[key] = value;
+// }
+// console.log(JSON.stringify(jsonObject));
+      // console.log(formData);
       Object.entries(formData).forEach(([key, value]) => {
-        if (key === "profilePicture" && value) {
-          formPayload.append(key, value);
-        } else {
-          formPayload.append(key, value as string);
-        }
+          formPayload[key] = value;
       });
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/auth/register`,
-        {
-          method: "POST",
-          body: formPayload,
-        }
-      );
+      // for (let [key, value] of formPayload.entries()) {
+      //   console.log(key, value);
+      // }
+
+      console.log(JSON.stringify(formPayload));
+
+      const response = await fetch("http://localhost:5002/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formPayload),
+      });
 
       if (!response.ok) {
+        console.log(response);
         const errorData = await response.json();
+        setError(errorData.message || "Failed to register");
         throw new Error(errorData.message || "Failed to register");
       }
 
@@ -116,7 +125,7 @@ const ProfileCreation: React.FC = () => {
       localStorage.setItem("token", token);
       navigate(`/dashboard/${user._id}`);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Unexpected error");
       console.error(err);
     } finally {
       setLoading(false);
@@ -134,36 +143,174 @@ const ProfileCreation: React.FC = () => {
         </div>
 
         {error && (
-          <div
-            className="m-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative flex items-center"
-            role="alert"
-          >
+          <div className="m-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative flex items-center">
             <AlertCircle className="h-5 w-5 mr-2" />
             <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="px-4 py-5 sm:p-6 space-y-6">
-          {/* Inputs (same as previous code) */}
-          {/* Name, Email, Passwords, Department, Designation, Intro, Scholar URL, Image Upload */}
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Name
+            </label>
+            <input
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
 
-          <div className="pt-5">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-maroon-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-maroon-600 hover:bg-maroon-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-maroon-500 disabled:bg-maroon-400 disabled:cursor-not-allowed"
-              >
-                {loading ? "Creating..." : "Create Profile"}
-              </button>
-            </div>
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          {/* Confirm Password */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          {/* Department */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Department
+            </label>
+            <select
+              name="department"
+              value={formData.department}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            >
+              <option value="">Select department</option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Designation */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Designation
+            </label>
+            <select
+              name="designation"
+              value={formData.designation}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            >
+              <option value="">Select designation</option>
+              {designations.map((desig) => (
+                <option key={desig} value={desig}>
+                  {desig}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Introduction */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Introduction
+            </label>
+            <textarea
+              name="introduction"
+              value={formData.introduction}
+              onChange={handleInputChange}
+              rows={3}
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            ></textarea>
+          </div>
+
+          {/* Scholar Profile URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Google Scholar Profile URL
+            </label>
+            <input
+              type="url"
+              name="scholarProfileUrl"
+              value={formData.scholarProfileUrl}
+              onChange={handleInputChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          {/* Profile Picture */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Profile Picture
+            </label>
+            <input type="file" accept="image/*" onChange={handleFileChange} />
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="mt-2 h-20 w-20 object-cover rounded-full border"
+              />
+            )}
+          </div>
+
+          {/* Buttons */}
+          <div className="pt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-maroon-600 hover:bg-maroon-700 disabled:opacity-50"
+            >
+              {loading ? "Creating..." : "Create Profile"}
+            </button>
           </div>
         </form>
       </div>

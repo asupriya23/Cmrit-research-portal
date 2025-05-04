@@ -6,12 +6,16 @@ const puppeteer = require('puppeteer');
 const dotenv = require('dotenv');
 const User = require('./models/User');
 const Profile = require('./models/Profile'); // Ensure this model exists
-const authenticate = require('./middleware/authenticate');
+const authenticate = require('./middleware/auth');
+
+const cors = require("cors");
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+
+app.use(cors({ origin: "http://localhost:5173" }));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -20,7 +24,13 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 
 // Register Route
 app.post('/register', async (req, res) => {
+  console.log(req);
+  console.log(Object.keys(req));
+  console.log(Object.keys(req.body));
+  console.log("3ewdcewcdsx", req.body);
+
   const { name, email, password, googleScholarUrl } = req.body;
+  console.log(name, email, password, googleScholarUrl);
 
   try {
     // Check if user already exists
@@ -39,6 +49,7 @@ app.post('/register', async (req, res) => {
 
     res.status(201).json({ message: 'User registered' });
   } catch (error) {
+    console.error("Register Error:", error); 
     res.status(400).json({ error: 'Error registering user' });
   }
 });
@@ -160,5 +171,5 @@ async function scrapeGoogleScholar(url) {
 }
 
 // Start the Server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
