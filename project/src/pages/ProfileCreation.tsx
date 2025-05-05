@@ -1,3 +1,4 @@
+// ProfileCreation.js
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, AlertCircle } from "lucide-react";
@@ -88,42 +89,32 @@ const ProfileCreation: React.FC = () => {
       setError("");
       setLoading(true);
 
-      // const formPayload = new FormData();
-
-      const formPayload = {};
-// for (let [key, value] of formPayload.entries()) {
-//   jsonObject[key] = value;
-// }
-// console.log(JSON.stringify(jsonObject));
-      // console.log(formData);
-      Object.entries(formData).forEach(([key, value]) => {
-          formPayload[key] = value;
-      });
-
-      // for (let [key, value] of formPayload.entries()) {
-      //   console.log(key, value);
-      // }
-
-      console.log(JSON.stringify(formPayload));
+      const formPayload = new FormData();
+      formPayload.append("name", formData.name);
+      formPayload.append("email", formData.email);
+      formPayload.append("password", formData.password);
+      formPayload.append("department", formData.department);
+      formPayload.append("designation", formData.designation);
+      formPayload.append("introduction", formData.introduction);
+      formPayload.append("scholarProfileUrl", formData.scholarProfileUrl);
+      if (formData.profilePicture) {
+        formPayload.append("profilePicture", formData.profilePicture);
+      }
 
       const response = await fetch("http://localhost:5002/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formPayload),
+        body: formPayload, // Send as FormData
       });
 
       if (!response.ok) {
-        console.log(response);
         const errorData = await response.json();
-        setError(errorData.message || "Failed to register");
-        throw new Error(errorData.message || "Failed to register");
+        setError(errorData.error || "Failed to register");
+        throw new Error(errorData.error || "Failed to register");
       }
 
-      const { token, user } = await response.json();
-      localStorage.setItem("token", token);
-      navigate(`/dashboard/${user._id}`);
+      const { userId } = await response.json(); // Expecting userId in the response
+      console.log(userId);
+      navigate(`/dashboard/${userId}`); // Navigate to the dashboard with the user ID
     } catch (err: any) {
       setError(err.message || "Unexpected error");
       console.error(err);

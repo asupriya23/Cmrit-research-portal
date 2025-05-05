@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
       try {
         const token = localStorage.getItem("token");
         const response = await axios.get(
-          `http://localhost:5000/api/faculty/${id}`,
+          `http://localhost:5002/api/faculty/${id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
