@@ -3,7 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { GraduationCap } from "lucide-react";
 import axios from "axios"; // Import axios
 
-const Login: React.FC = () => {
+const Login: React.FC = (props) => {
+  const {setLoggedID} = props;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,23 +18,15 @@ const Login: React.FC = () => {
       setError("");
       setLoading(true);
 
-      // Make the API call to the backend login endpoint
-      const response = await axios.post(
-        "http://your-backend-url/api/auth/login",
-        {
-          email,
-          password,
-        }
-      );
+      const response = await axios.post("http://localhost:5002/login", {
+        email,
+        password,
+      });
 
-      // Assuming the backend returns a JWT token
-      const { token } = response.data;
-
-      // Store the token in localStorage (or sessionStorage)
-      localStorage.setItem("authToken", token);
-
-      // Redirect to the homepage (or any other page)
-      navigate("/");
+      const { userId } = response.data;
+      console.log(userId);
+      setLoggedID(userId);
+      navigate(`/dashboard/${userId}`);
     } catch (err) {
       setError("Failed to sign in. Please check your credentials.");
       console.error(err);

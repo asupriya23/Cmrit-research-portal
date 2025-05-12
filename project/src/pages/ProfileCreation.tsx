@@ -26,7 +26,8 @@ const designations = [
   "Principal",
 ];
 
-const ProfileCreation: React.FC = () => {
+const ProfileCreation: React.FC = (props) => {
+  const {setLoggedID} = props;
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -114,6 +115,7 @@ const ProfileCreation: React.FC = () => {
 
       const { userId } = await response.json(); // Expecting userId in the response
       console.log(userId);
+      setLoggedID(userId);
       navigate(`/dashboard/${userId}`); // Navigate to the dashboard with the user ID
     } catch (err: any) {
       setError(err.message || "Unexpected error");

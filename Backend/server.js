@@ -32,8 +32,9 @@ const PROFESSORS_COLLECTION = "professors";
 const UPLOADS_DIR = path.join(__dirname, "uploads"); // Directory to store uploads
 
 // --- Import Models ---
-const User = require("./models/User");
+const User = require("./models/User"); // Ensure User model has user_id: { type: Number, unique: true, required: true }
 const Publication = require("./models/Publication");
+const { runScrapeAndStoreService } = require("./scrape"); // Import the service
 
 // --- Import Middleware ---
 const authenticate = require("./middleware/auth");
@@ -46,14 +47,13 @@ const app = express();
 
 // --- Middleware Setup ---
 const corsOptions = {
-  origin: "http://localhost:5173",
+  origin: "http://localhost:5173", // Adjust if your frontend runs elsewhere
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 };
 
 app.use(cors(corsOptions));
-
 app.use(express.json());
 app.use("/uploads", express.static(UPLOADS_DIR)); // Serve uploaded files
 
@@ -78,10 +78,47 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// --- Helper Function: Get Next Sequence Value ---
+const getNextSequenceValue = async (db, sequenceName) => {
+  const counterCollection = db.collection("counters");
+  try {
+    const sequenceDoc = await counterCollection.findOneAndUpdate(
+      { _id: sequenceName },
+      { $inc: { seq: 1 } },
+      { returnDocument: "after", upsert: true }
+    );
+
+    if (sequenceDoc && sequenceDoc.seq != null) {
+      return sequenceDoc.seq;
+    } else {
+      // This case should be rare with upsert: true and successful $inc
+      console.error(
+        `Counter for ${sequenceName} returned null or seq is missing after update. Doc:`,
+        sequenceDoc
+      );
+      // Attempt a re-read as a fallback
+      const fallbackDoc = await counterCollection.findOne({
+        _id: sequenceName,
+      });
+      if (fallbackDoc && fallbackDoc.seq != null) {
+        console.warn(
+          `Fallback read for ${sequenceName} found seq: ${fallbackDoc.seq}`
+        );
+        return fallbackDoc.seq;
+      }
+      throw new Error(
+        `Failed to retrieve or initialize the next sequence for ${sequenceName}.`
+      );
+    }
+  } catch (error) {
+    console.error(`Error in getNextSequenceValue for ${sequenceName}:`, error);
+    throw error; // Re-throw the error to be caught by the caller
+  }
+};
+
 // --- Helper Function: Get or Create Professor ID ---
 const getProfessorId = async (db, professorName) => {
   const professorsCollection = db.collection(PROFESSORS_COLLECTION);
-
   try {
     const existingProfessor = await professorsCollection.findOne({
       prof_name: professorName,
@@ -89,29 +126,18 @@ const getProfessorId = async (db, professorName) => {
 
     if (existingProfessor) {
       console.log(
-        `Found existing professor: ${professorName} with ID: ${existingProfessor.prof_id}`
+        `Found existing professor: ${professorName} with ID: ${existingProfessor.user_id}`
       );
-      return existingProfessor.prof_id;
+      return existingProfessor.user_id;
     } else {
       console.log(`Professor ${professorName} not found. Creating new entry.`);
-
-      const counterCollection = db.collection("counters");
-      const sequenceDoc = await counterCollection.findOneAndUpdate(
-        { _id: "professorId" },
-        { $inc: { seq: 1 } },
-        { returnDocument: "after", upsert: true }
-      );
-
-      if (!sequenceDoc || sequenceDoc.seq == null) {
-        throw new Error("Failed to retrieve the next professor ID sequence.");
-      }
-
-      const nextId = sequenceDoc.seq;
-      console.log(`Assigning new Professor ID: ${nextId}`);
+      // Use the generalized sequence generator, e.g. "professorIdCounter"
+      const nextId = await getNextSequenceValue(db, "professorId"); // Using "professorId" as sequence name as in original logic
+      console.log(`Assigning new Professor ID: ${nextId} for ${professorName}`);
 
       await professorsCollection.insertOne({
         prof_name: professorName,
-        prof_id: nextId,
+        user_id: nextId,
       });
       console.log(
         `Successfully inserted new professor mapping for ${professorName}.`
@@ -120,6 +146,7 @@ const getProfessorId = async (db, professorName) => {
     }
   } catch (error) {
     if (error.code === 11000) {
+      // Duplicate key error on prof_name index
       console.warn(
         `Duplicate key error (or race condition resolved by index) for professor: ${professorName}. Refetching ID.`
       );
@@ -127,10 +154,10 @@ const getProfessorId = async (db, professorName) => {
         prof_name: professorName,
       });
       if (justInsertedProfessor) {
-        return justInsertedProfessor.prof_id;
+        return justInsertedProfessor.user_id;
       } else {
         throw new Error(
-          `Failed to find professor ${professorName} after duplicate key error.`
+          `Failed to find professor ${professorName} after duplicate key error on name.`
         );
       }
     } else {
@@ -151,165 +178,206 @@ app.post("/register", upload.single("profilePicture"), async (req, res) => {
     department,
     designation,
     introduction,
-    scholarProfileUrl,
+    scholarProfileUrl
   } = req.body;
-  const profilePicture = req.file ? `/uploads/${req.file.filename}` : null; // Store path to the uploaded file
+  const profilePicture = req.file ? `/uploads/${req.file.filename}` : null;
 
-  // --- Input Validation ---
-  if (!name || !email || !password || !department || !designation || !scholarProfileUrl) {
+  if (
+    !name ||
+    !email ||
+    !password ||
+    !department ||
+    !designation ||
+    !scholarProfileUrl
+  ) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   let mongoClient = null;
 
   try {
-    // --- User Registration ---
+    // 1. Connect to MongoDB (using MongoClient for direct DB operations like counters)
+    console.log(
+      "Connecting to MongoDB via MongoClient for registration operations..."
+    );
+    mongoClient = new MongoClient(MONGO_URI);
+    await mongoClient.connect();
+    const db = mongoClient.db(DB_NAME);
+    console.log(`MongoClient connected to DB: ${DB_NAME}`);
+
+    // 2. Check if user already exists (using Mongoose model)
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      // No need to keep mongoClient open if user exists
+      // await mongoClient.close(); // mongoClient will be closed in finally block
       return res.status(400).json({ error: "User already exists" });
     }
 
+    // 3. Generate New User ID using the counter
+    // This ID will be stored in the User model's 'user_id' field.
+    const newUserId = await getNextSequenceValue(db, "userCounter"); // "userCounter" is the sequence name for user IDs
+    console.log(`Generated new User ID (for User.user_id): ${newUserId}`);
+
+    // 4. User Registration (Create and Save New User)
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const newUser = new User({
-      name,
-      email,
-      password: hashedPassword,
-      department,
-      designation,
-      introduction,
-      googleScholarUrl: scholarProfileUrl, // Store the URL
-      profilePicture, // Store the file path
-    });
-    const savedUser = await newUser.save();
-    console.log(`User ${email} registered successfully.`);
-    const userId = savedUser.prof_id;
-
-    // --- Scraping and Storing Publications ---
-    console.log(
-      `Starting scraping process for URL: ${scholarProfileUrl} associated with user ${email}`
-    );
-
-    // 1. Scrape Profile Data
     const profileData = await scrapeScholarProfile(scholarProfileUrl);
 
-    // Validate scraper output
     if (!profileData || !profileData.name) {
       console.error(
         `Scraping Error: Failed to retrieve profile data or name for URL: ${scholarProfileUrl}`
       );
-      // Don't necessarily fail the registration, but log the issue.
-      // The user is registered, but scraping failed. Inform the user.
-      // You might want a separate mechanism to retry scraping later.
       return res.status(201).json({
+        // User is registered, but scraping had issues
         message:
           "User registered successfully, but failed to scrape profile data. Please check the Google Scholar URL or try again later.",
-        userId: userId, // Send back user ID
-        scrapeStatus: "failed",
+        userId: savedUser.user_id,
+        scrapeStatus: "failed_profile_data",
       });
     }
     console.log(
       `Scraping successful for: ${profileData.name} from URL: ${scholarProfileUrl}`
     );
 
-    // 2. Connect to MongoDB (using MongoClient for direct access if needed, e.g., for getProfessorId)
-    // Re-use Mongoose connection if `getProfessorId` doesn't strictly need MongoClient
-    console.log("Connecting to MongoDB via MongoClient for publication storage...");
-    mongoClient = new MongoClient(MONGO_URI);
-    await mongoClient.connect();
-    const db = mongoClient.db(DB_NAME);
-    console.log(`MongoClient connected to DB: ${DB_NAME}`);
+    // console.log(profileData);
 
-    // 3. Get or Create Professor ID
-    // Ensure the scraped name matches the registered user's name or handle discrepancies
-    // For now, we assume the scraped name is the primary identifier for publications.
-    const professorId = await getProfessorId(db, profileData.name);
+    const newUser = new User({
+      user_id: newUserId, // Assign the auto-incremented ID
+      name,
+      email,
+      password: hashedPassword,
+      department,
+      designation,
+      introduction,
+      googleScholarUrl: scholarProfileUrl,
+      profilePicture,
+      citationCount: profileData.citationCount,
+      hIndex: profileData.hIndex,
+      i10Index: profileData.i10Index,
+      citationHistory: profileData.citationHistory
+    });
 
-    // 4. Handle Case of No Publications Found
+    console.log(newUser);
+
+    const savedUser = await newUser.save(); // Mongoose save operation
+    console.log(
+      `User ${email} registered successfully with user_id: ${savedUser.user_id}.`
+    );
+    // const userIdForResponse = savedUser.user_id; // This is the auto-incremented ID
+
+    // --- Scraping and Storing Publications ---
+    console.log(
+      `Starting scraping process for URL: ${scholarProfileUrl} associated with user ${email}`
+    );
+
+    // Get or Create Professor ID for the scraped profile's publications
+    // The 'db' object from our mongoClient is passed to getProfessorId
+    const professorIdForPublications = await getProfessorId(
+      db,
+      profileData.name
+    );
+
     if (!profileData.publications || profileData.publications.length === 0) {
       console.log(
         `No publications found for ${profileData.name}. Nothing to insert.`
       );
       return res.status(201).json({
+        // User registered, scraping done, no publications
         message: `User registered. Scraping successful, but no publications found for ${profileData.name}.`,
-        userId: userId,
+        userId: savedUser.user_id,
         professorName: profileData.name,
-        professorId: professorId,
+        professorId: professorIdForPublications,
         insertedCount: 0,
         scrapeStatus: "success_no_publications",
       });
     }
 
-    // 5. Prepare Publication Documents for Insertion
     const documentsToInsert = profileData.publications.map((pub) => ({
-      prof_name: profileData.name, // Link publication to the scraped name
-      prof_id: professorId, // Link using the generated/found ID
+      prof_name: profileData.name,
+      user_id: professorIdForPublications,
       paper_title: pub.title,
-      paper_authors: pub.authors, // Assuming scraper provides authors
-      paper_venue: pub.venue, // Assuming scraper provides venue/journal
+      paper_journal: pub.journal,
       paper_year: pub.year,
-      // Add other relevant fields scraped (e.g., citations, URL)
+      paper_authors: pub.authors
     }));
     console.log(
       `Prepared ${documentsToInsert.length} publication documents for insertion.`
     );
 
-    // 6. Insert Publication Documents
     const publicationsCollection = db.collection(PUBLICATIONS_COLLECTION);
     const insertResult = await publicationsCollection.insertMany(
       documentsToInsert,
-      { ordered: false } // Continue inserting even if some docs fail (e.g., duplicates if not handled)
+      { ordered: false }
     );
     console.log(
       `Successfully inserted ${insertResult.insertedCount} documents into ${PUBLICATIONS_COLLECTION}.`
     );
 
-    // 7. Send Success Response (User Registered & Publications Stored)
     return res.status(201).json({
-      message: `User registered. Successfully scraped and stored ${insertResult.insertedCount} publications.`,
-      userId: userId,
-      professorName: profileData.name,
-      professorId: professorId,
+      message: `User registered with ID ${savedUser.user_id}. Successfully scraped and stored ${insertResult.insertedCount} publications.`,
+      userId: savedUser.user_id, // The auto-incremented ID of the registered user
+      professorName: profileData.name, // Scraped professor's name
+      professorId: professorIdForPublications, // ID associated with the scraped professor's publications
       insertedCount: insertResult.insertedCount,
       scrapeStatus: "success",
     });
   } catch (error) {
     console.error("\n--- /register Endpoint Error ---");
-    console.error(error); // Log the full error for debugging
+    console.error(error);
 
-    // Determine the type of error for a more specific response
     let statusCode = 500;
-    let message = "An internal server error occurred during registration.";
+    let responseMessage =
+      "An internal server error occurred during registration."; // Renamed to avoid conflict
 
     if (error instanceof MongoNetworkError) {
-      message = "Database connection error.";
-    } else if (error.name && error.name.includes("Mongo")) {
-      // Includes Mongoose errors and MongoClient errors
-      message = "Database operation error.";
+      responseMessage = "Database connection error.";
+    } else if (
+      error.name === "MongoServerError" ||
+      error.name === "MongoError" ||
+      (error.message && error.message.includes("mongo"))
+    ) {
+      responseMessage = "Database operation error.";
       if (error.code === 11000) {
-        // Specific duplicate key error (e.g., during user save)
-        message = "Database error: Duplicate entry.";
-        statusCode = 400; // Bad request due to duplicate
-      }
-    } else if (error.message.toLowerCase().includes("scrape")) {
-      // Basic check if it's likely a scraping error
-      message = "Error during scraping process.";
-      // Decide if this should be a 500 or maybe a different status if user was created
-    } else if (error.message.includes("Failed to retrieve the next professor ID")) {
-        message = "Error generating professor ID.";
-    } else if (error.name === 'ValidationError') { // Mongoose validation error
+        // Duplicate key error
+        if (error.message.includes("email")) {
+          // Check if duplication is on email
+          responseMessage = "User with this email already exists.";
+        } else if (error.message.includes("user_id")) {
+          // Check if duplication is on user's user_id
+          responseMessage =
+            "User ID generation conflict. This is rare; please try again.";
+        } else {
+          responseMessage =
+            "Database error: A unique field already has this value.";
+        }
         statusCode = 400;
-        message = "Validation Error: " + error.message;
+      }
+    } else if (
+      error.message &&
+      error.message.toLowerCase().includes("scrape")
+    ) {
+      responseMessage = "Error during scraping process.";
+    } else if (
+      error.message &&
+      error.message.includes(
+        "Failed to retrieve or initialize the next sequence"
+      )
+    ) {
+      responseMessage =
+        "Error generating a unique ID for the user or professor.";
+    } else if (error.name === "ValidationError") {
+      // Mongoose validation error
+      statusCode = 400;
+      responseMessage = "Validation Error: " + error.message;
     }
 
     res.status(statusCode).json({
-      error: message,
-      details: error.message, // Optionally include more details in dev mode
+      error: responseMessage,
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined, // More details in dev
     });
-    console.error("--- End of Error ---");
   } finally {
-    // 8. Ensure MongoClient connection is closed if it was opened
     if (mongoClient) {
       try {
         await mongoClient.close();
@@ -341,22 +409,94 @@ app.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid credentials" }); // Password doesn't match
     }
 
-    // Generate JWT
-    const payload = {
-      user: {
-        id: user._id, // Include user ID in the payload
-        name: user.name, // Optionally include other non-sensitive info
-      },
-    };
+    // 1. Connect to MongoDB (using MongoClient for direct DB operations like counters)
+    console.log(
+      "Connecting to MongoDB via MongoClient for registration operations..."
+    );
+    mongoClient = new MongoClient(MONGO_URI);
+    await mongoClient.connect();
+    const db = mongoClient.db(DB_NAME);
+    console.log(`MongoClient connected to DB: ${DB_NAME}`);
 
-    const token = jwt.sign(payload, JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRATION || "1h", // Use env var for expiration
-    });
+    console.log(user);
+    const savedUser = user;
+    const scholarProfileUrl = savedUser.googleScholarUrl;
 
-    // Send token (and optionally user info) back to client
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email }, // Send back some user details
+    // --- Scraping and Storing Publications ---
+    console.log(
+      `Starting scraping process for URL: ${scholarProfileUrl} associated with user ${email}`
+    );
+    const profileData = await scrapeScholarProfile(scholarProfileUrl);
+
+    if (!profileData || !profileData.name) {
+      console.error(
+        `Scraping Error: Failed to retrieve profile data or name for URL: ${scholarProfileUrl}`
+      );
+      return res.status(201).json({
+        // User is registered, but scraping had issues
+        message:
+          "User registered successfully, but failed to scrape profile data. Please check the Google Scholar URL or try again later.",
+        userId: savedUser.user_id,
+        scrapeStatus: "failed_profile_data",
+      });
+    }
+    console.log(
+      `Scraping successful for: ${profileData.name} from URL: ${scholarProfileUrl}`
+    );
+
+    // Get or Create Professor ID for the scraped profile's publications
+    // The 'db' object from our mongoClient is passed to getProfessorId
+    const professorIdForPublications = await getProfessorId(
+      db,
+      profileData.name
+    );
+
+    if (!profileData.publications || profileData.publications.length === 0) {
+      console.log(
+        `No publications found for ${profileData.name}. Nothing to insert.`
+      );
+      return res.status(201).json({
+        // User registered, scraping done, no publications
+        message: `User registered. Scraping successful, but no publications found for ${profileData.name}.`,
+        userId: savedUser.user_id,
+        professorName: profileData.name,
+        professorId: professorIdForPublications,
+        insertedCount: 0,
+        scrapeStatus: "success_no_publications",
+      });
+    }
+
+    const documentsToInsert = profileData.publications.map((pub) => ({
+      prof_name: profileData.name,
+      user_id: professorIdForPublications, // ID for the professor whose publications these are
+      paper_title: pub.title,
+      paper_journal: pub.journal,
+      paper_year: pub.year,
+      paper_authors: pub.authors,
+      // citationCount: pub.citationCount,
+      // hIndex: pub.hIndex,
+      // i10Index: pub.i10Index,
+    }));
+    console.log(
+      `Prepared ${documentsToInsert.length} publication documents for insertion.`
+    );
+
+    const publicationsCollection = db.collection(PUBLICATIONS_COLLECTION);
+    const insertResult = await publicationsCollection.insertMany(
+      documentsToInsert,
+      { ordered: false }
+    );
+    console.log(
+      `Successfully inserted ${insertResult.insertedCount} documents into ${PUBLICATIONS_COLLECTION}.`
+    );
+
+    return res.status(201).json({
+      message: `User logged in with ID ${savedUser.user_id}. Successfully scraped and stored ${insertResult.insertedCount} publications.`,
+      userId: savedUser.user_id, // The auto-incremented ID of the registered user
+      professorName: profileData.name, // Scraped professor's name
+      professorId: professorIdForPublications, // ID associated with the scraped professor's publications
+      insertedCount: insertResult.insertedCount,
+      scrapeStatus: "success",
     });
   } catch (error) {
     console.error("Login Error:", error);
@@ -366,40 +506,217 @@ app.post("/login", async (req, res) => {
 
 app.get("/api/faculty/:profId", async (req, res) => {
   try {
-    // Extract the professor ID from the URL parameters
-    const profId = req.params.profId;
+    const profIdParam = req.params.profId;
+    const numericUserId = parseInt(profIdParam, 10);
 
-    // --- Input Validation (Optional but recommended) ---
-    // If PROF_ID is expected to be a MongoDB ObjectId, validate it
-    if (!mongoose.Types.ObjectId.isValid(profId)) {
-        return res.status(400).json({ message: "Invalid Professor ID format" });
+    console.log(numericUserId);
+    if (isNaN(numericUserId)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid Faculty ID format. Must be a number." });
     }
-    // --- End Validation ---
 
+    // 1. Find the user in your database
+    const facultyUser = await User.findOne({ user_id: numericUserId });
 
-    console.log(profId);
-    // Find all publications associated with this professor ID
-    // ASSUMPTION: Your Publication model has a field like 'professorId'
-    // that stores the ObjectId of the related professor.
-    const publications = await Publication.find({ prof_id: profId });
+    if (!facultyUser) {
+      return res.status(404).json({ message: "Faculty user not found." });
+    }
 
-    // If no publications are found for this ID, publications will be an empty array [],
-    // which is usually an acceptable response indicating no publications exist for the professor.
-    // You could optionally check if the professor themselves exists first if needed,
-    // but fetching publications directly is often sufficient.
+    if (!facultyUser.googleScholarUrl) {
+      console.log(
+        `User ${numericUserId} does not have a Google Scholar URL configured.`
+      );
+      // Fetch existing publications if any, but don't attempt to scrape.
+      const existingPublications = await Publication.find({
+        user_id: numericUserId,
+      });
+      return res.status(200).json({
+        message:
+          "Google Scholar URL not configured for this user. Displaying cached publications.",
+        publications: existingPublications,
+      });
+    }
 
-    console.log(publications);
+    // --- Automatic Scraping Logic ---
+    // WARNING: This will make the API call slow and has other implications mentioned above.
+    // Consider adding a condition, e.g., scrape only if lastScrapedAt is older than X days.
+    console.log(
+      `Attempting to scrape publications for User ID: ${numericUserId} from ${facultyUser.googleScholarUrl}`
+    );
+    const scrapeResult = await runScrapeAndStoreService(
+      facultyUser.googleScholarUrl,
+      numericUserId
+    );
+
+    if (scrapeResult.success) {
+      console.log(
+        `Scraping successful for User ID ${numericUserId}. Name: ${scrapeResult.name}, Inserted: ${scrapeResult.insertedCount}`
+      );
+      // Update lastScrapedAt timestamp for the user
+      facultyUser.lastScrapedAt = new Date();
+      await facultyUser.save();
+    } else {
+      console.warn(
+        `Scraping failed or returned no new data for User ID ${numericUserId}: ${scrapeResult.message}`
+      );
+      // You might still want to return any previously fetched data in case of scrape failure.
+      // Or, return an error specific to the scrape failure.
+      // For this example, we'll proceed to fetch whatever is in the DB.
+    }
+    // --- End Automatic Scraping Logic ---
+
+    // 2. Fetch publications from the database (these will be the latest after the scrape attempt)
+    const publications = await Publication.find({ user_id: numericUserId });
+    console.log(
+      `Returning ${publications.length} publications for User ID ${numericUserId} after scrape attempt.`
+    );
+
+    // console.log(publications);
     res.status(200).json(publications);
+  } catch (error) {
+    console.error(`Error in /api/faculty/${req.params.profId} route:`, error);
+    res
+      .status(500)
+      .json({ message: "Server Error processing faculty request" });
+  }
+});
+
+app.get("/details/:profId", async (req, res) => {
+  try {
+    const profIdParam = req.params.profId;
+    // Ensure profIdParam is parsed as a number for database queries
+    const numericUserId = parseInt(profIdParam, 10);
+
+    // Log the parsed ID for debugging
+    console.log("Requested Faculty ID (parsed):", numericUserId);
+
+    // Validate that numericUserId is a number
+    if (isNaN(numericUserId)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid Faculty ID format. Must be a number." });
+    }
+
+    // 1. Find the user in your database (Users Collection)
+    // We assume 'user_id' is a field in your User model that stores the numeric ID.
+    const facultyUser = await User.findOne({ user_id: numericUserId });
+
+    // Handle case where no user is found with that ID
+    if (!facultyUser) {
+      return res.status(404).json({ message: "Faculty user not found." });
+    }
+
+    // Check if the user has a Google Scholar URL configured
+    if (!facultyUser.googleScholarUrl) {
+      console.log(
+        `User ${numericUserId} does not have a Google Scholar URL configured.`
+      );
+      // If no Google Scholar URL, fetch existing publications from the Publication collection.
+      // This part assumes you have a Publication model and 'user_id' links it to the User.
+      const existingPublications = await Publication.find({
+        user_id: numericUserId, // Ensure this field matches your Publication schema
+      });
+      return res.status(200).json({
+        message:
+          "Google Scholar URL not configured for this user. Displaying cached publications.",
+        publications: existingPublications,
+        // Note: This branch currently only returns publications.
+        // You might consider returning facultyUser details here as well for API consistency:
+        // facultyDetails: facultyUser,
+      });
+    }
+
+    // WRTIE CODE HERE
+    // FETCH ALLL DETAILS FROM USERS COLLECTION AND RETURN THAT
+    // The 'facultyUser' variable, fetched above, already contains all details 
+    // for this user from the User collection.
+    // So, we return the facultyUser object directly.
+    // If scraping or other operations related to the Google Scholar URL were to be performed,
+    // they would typically happen before this response.
+    return res.status(200).json(facultyUser);
 
   } catch (error) {
-    console.error(`Error fetching publications for professor ${req.params.profId}:`, error);
+    // Log the detailed error on the server for debugging
+    console.error(`Error in /details/${req.params.profId} route:`, error);
+    // Send a generic error message to the client
+    res
+      .status(500)
+      .json({ message: "Server Error processing faculty details" });
+  }
+});
 
-    // Handle specific errors if necessary (e.g., casting errors for invalid IDs)
-    if (error instanceof mongoose.Error.CastError) {
-         return res.status(400).json({ message: "Invalid ID format" });
+app.get("/api/getAllFaculty", async (req, res) => {
+  try {
+    const allUsers = await User.find({});
+    res.status(200).json(allUsers);
+  } catch (error) {
+    console.error("Error fetching all faculty:", error);
+    res.status(500).json({ message: "Failed to retrieve faculty data." });
+  }
+});
+
+app.get("/details/:profId", async (req, res) => {
+  try {
+    const profIdParam = req.params.profId;
+    // Ensure profIdParam is parsed as a number for database queries
+    const numericUserId = parseInt(profIdParam, 10);
+
+    // Log the parsed ID for debugging
+    console.log("Requested Faculty ID (parsed):", numericUserId);
+
+    // Validate that numericUserId is a number
+    if (isNaN(numericUserId)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid Faculty ID format. Must be a number." });
     }
 
-    res.status(500).json({ message: "Server Error fetching publications" });
+    // 1. Find the user in your database (Users Collection)
+    // We assume 'user_id' is a field in your User model that stores the numeric ID.
+    const facultyUser = await User.findOne({ user_id: numericUserId });
+
+    // Handle case where no user is found with that ID
+    if (!facultyUser) {
+      return res.status(404).json({ message: "Faculty user not found." });
+    }
+
+    // Check if the user has a Google Scholar URL configured
+    if (!facultyUser.googleScholarUrl) {
+      console.log(
+        `User ${numericUserId} does not have a Google Scholar URL configured.`
+      );
+      // If no Google Scholar URL, fetch existing publications from the Publication collection.
+      // This part assumes you have a Publication model and 'user_id' links it to the User.
+      const existingPublications = await Publication.find({
+        user_id: numericUserId, // Ensure this field matches your Publication schema
+      });
+      return res.status(200).json({
+        message:
+          "Google Scholar URL not configured for this user. Displaying cached publications.",
+        publications: existingPublications,
+        // Note: This branch currently only returns publications.
+        // You might consider returning facultyUser details here as well for API consistency:
+        // facultyDetails: facultyUser,
+      });
+    }
+
+    // WRTIE CODE HERE
+    // FETCH ALLL DETAILS FROM USERS COLLECTION AND RETURN THAT
+    // The 'facultyUser' variable, fetched above, already contains all details 
+    // for this user from the User collection.
+    // So, we return the facultyUser object directly.
+    // If scraping or other operations related to the Google Scholar URL were to be performed,
+    // they would typically happen before this response.
+    return res.status(200).json(facultyUser);
+
+  } catch (error) {
+    // Log the detailed error on the server for debugging
+    console.error(`Error in /details/${req.params.profId} route:`, error);
+    // Send a generic error message to the client
+    res
+      .status(500)
+      .json({ message: "Server Error processing faculty details" });
   }
 });
 

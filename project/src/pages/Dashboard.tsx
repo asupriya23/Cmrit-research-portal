@@ -43,23 +43,33 @@ const Dashboard: React.FC = () => {
   const [researchAreas, setResearchAreas] = useState([]);
   const [publicationsList, setPublicationsList] = useState([]);
 
+  console.log(id);
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const token = localStorage.getItem("token");
-        const response = await axios.get(
+        let response = await axios.get(
           `http://localhost:5002/api/faculty/${id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
 
-        const data = response.data;
-        setProfileData(data.profile);
-        setPublications(data.publicationsByYear);
-        setCitations(data.citationsOverTime);
-        setResearchAreas(data.researchAreas);
-        setPublicationsList(data.recentPublications);
+        let data = response.data;
+        // console.log(data);
+        setPublicationsList(data);
+        // console.log(
+        // publicationsList.map((pub: any) => (pub.paper_title, pub.paper_year))
+        // );
+
+        response = await axios.get(`http://localhost:5002/details/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        data = response.data;
+        console.log(data);
+        setProfileData(data);
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -97,7 +107,7 @@ const Dashboard: React.FC = () => {
                 <img
                   className="h-24 w-24 rounded-full object-cover border-4 border-white shadow-lg"
                   src={
-                    profileData.profilePic ||
+                    profileData.profilePicture ||
                     "https://images.pexels.com/photos/5212324/pexels-photo-5212324.jpeg"
                   }
                   alt="Profile"
@@ -112,7 +122,7 @@ const Dashboard: React.FC = () => {
                 </p>
                 <div className="mt-2 flex items-center text-sm text-gray-500">
                   <BookOpen className="mr-1.5 h-4 w-4 text-maroon-600" />
-                  Google Scholar ID: {profileData.scholarId}
+                  Google Scholar ID: {profileData.googleScholarUrl}
                 </div>
               </div>
             </div>
@@ -121,27 +131,27 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Metrics Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {[
-          {
-            icon: <FileText className="h-6 w-6 text-maroon-600" />,
-            label: "Total Publications",
-            value: profileData.metrics.publications,
-          },
+          // {
+          //   icon: <FileText className="h-6 w-6 text-maroon-600" />,
+          //   label: "Total Publications",
+          //   value: profileData.publications,
+          // },
           {
             icon: <Users className="h-6 w-6 text-maroon-600" />,
             label: "Total Citations",
-            value: profileData.metrics.citations,
+            value: profileData.citationCount,
           },
           {
             icon: <Award className="h-6 w-6 text-maroon-600" />,
             label: "h-index",
-            value: profileData.metrics.hIndex,
+            value: profileData.hIndex,
           },
           {
             icon: <TrendingUp className="h-6 w-6 text-maroon-600" />,
             label: "i10-index",
-            value: profileData.metrics.i10Index,
+            value: profileData.i10Index,
           },
         ].map((item, i) => (
           <div key={i} className="bg-white overflow-hidden shadow rounded-lg">
@@ -167,28 +177,29 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <div className="grid grid-cols-1 gap-8 mb-8">
         {/* Publications by Year */}
         <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Publications by Year</h3>
+          <h3 className="text-lg font-semibold mb-4">Citations by Year</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={publications}
+                data={profileData.citationHistory}
                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="year" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" fill="#8E354A" />
+                <Bar dataKey="citations" fill="rgba(142, 53, 74, 0.8)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
+      </div>
 
-        {/* Citations Over Time */}
-        <div className="bg-white p-6 rounded-lg shadow">
+      {/* Citations Over Time */}
+      {/* <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Citations Over Time</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -210,10 +221,10 @@ const Dashboard: React.FC = () => {
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div> */}
 
-        {/* Research Areas */}
-        <div className="bg-white p-6 rounded-lg shadow">
+      {/* Research Areas */}
+      {/* <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Research Areas</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -241,10 +252,10 @@ const Dashboard: React.FC = () => {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div> */}
 
-        {/* Co-author Network */}
-        <div className="bg-white p-6 rounded-lg shadow">
+      {/* Co-author Network */}
+      {/* <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Co-author Network</h3>
           <div className="h-80 flex flex-col items-center justify-center">
             <Network className="h-16 w-16 text-maroon-600 mb-4" />
@@ -257,13 +268,13 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Recent Publications Table */}
       <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
         <div className="px-4 py-5 sm:px-6 bg-maroon-600 text-white">
           <h3 className="text-lg leading-6 font-semibold">
-            Recent Publications
+            Most Cited Publications
           </h3>
         </div>
         <div className="overflow-x-auto">
@@ -280,35 +291,41 @@ const Dashboard: React.FC = () => {
                   Year
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Authors
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Citations
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {publicationsList.map((pub: any) => (
-                <tr key={pub.id} className="hover:bg-gray-50">
+                <tr key={pub._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-normal text-sm font-medium text-gray-900">
-                    {pub.title}
-                  </td>
-                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-500">
-                    {pub.journal}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {pub.year}
+                    {pub.paper_title}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {pub.citations}
+                    {pub.paper_journal}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {pub.paper_year}
+                  </td>
+                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-500">
+                    {pub.paper_authors?.join(", ")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-500">
+                    {pub.paper_citations}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="bg-gray-50 px-4 py-3 text-right sm:px-6">
+        {/* <div className="bg-gray-50 px-4 py-3 text-right sm:px-6">
           <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-maroon-700 bg-white hover:bg-gray-100 border-maroon-300 hover:border-maroon-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-maroon-500">
             View All Publications
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );

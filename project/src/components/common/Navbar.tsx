@@ -1,36 +1,57 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Menu, X, GraduationCap, Search } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Menu, X, GraduationCap, Search } from "lucide-react";
 
-const Navbar: React.FC = () => {
+const Navbar: React.FC = ({ setLoggedID, loggedID }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { currentUser, signOut } = useAuth();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
+  // Inside your component
+  const navigate = useNavigate();
+
+  const signOut = () => {
+    setLoggedID(-1);
+    navigate("/");
+  };
+  
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
         <div className="flex items-center">
           <Link to="/" className="flex items-center space-x-2">
             <GraduationCap className="w-8 h-8 text-maroon-700" />
-            <span className="font-bold text-xl text-maroon-700">CMRIT Research</span>
+            <span className="font-bold text-xl text-maroon-700">
+              CMRIT Research
+            </span>
           </Link>
         </div>
 
         {/* Desktop navigation */}
         <div className="hidden md:flex items-center space-x-8">
-          <Link to="/" className="text-gray-700 hover:text-maroon-600 font-medium">Home</Link>
-          <Link to="/faculty" className="text-gray-700 hover:text-maroon-600 font-medium">Faculty</Link>
-          {currentUser ? (
+          <Link
+            to="/"
+            className="text-gray-700 hover:text-maroon-600 font-medium"
+          >
+            Home
+          </Link>
+          <Link
+            to="/faculty"
+            className="text-gray-700 hover:text-maroon-600 font-medium"
+          >
+            Faculty
+          </Link>
+          {loggedID != -1 ? (
             <>
-              <Link to={`/dashboard/${currentUser.uid}`} className="text-gray-700 hover:text-maroon-600 font-medium">
+              <Link
+                to={`/dashboard/${loggedID}`}
+                className="text-gray-700 hover:text-maroon-600 font-medium"
+              >
                 Dashboard
               </Link>
-              <button 
+              <button
                 onClick={() => signOut()}
                 className="text-white bg-maroon-600 hover:bg-maroon-700 px-4 py-2 rounded-md font-medium"
               >
@@ -39,9 +60,14 @@ const Navbar: React.FC = () => {
             </>
           ) : (
             <>
-              <Link to="/login" className="text-gray-700 hover:text-maroon-600 font-medium">Login</Link>
-              <Link 
-                to="/create-profile" 
+              <Link
+                to="/login"
+                className="text-gray-700 hover:text-maroon-600 font-medium"
+              >
+                Login
+              </Link>
+              <Link
+                to="/create-profile"
                 className="text-white bg-maroon-600 hover:bg-maroon-700 px-4 py-2 rounded-md font-medium"
               >
                 Create Profile
@@ -56,7 +82,11 @@ const Navbar: React.FC = () => {
             onClick={toggleMenu}
             className="text-gray-700 hover:text-maroon-600"
           >
-            {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {isMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
           </button>
         </div>
       </nav>
@@ -64,30 +94,30 @@ const Navbar: React.FC = () => {
       {/* Mobile menu */}
       {isMenuOpen && (
         <div className="md:hidden bg-white py-2 px-4 shadow-lg">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="block py-2 text-gray-700 hover:text-maroon-600 font-medium"
             onClick={toggleMenu}
           >
             Home
           </Link>
-          <Link 
-            to="/faculty" 
+          <Link
+            to="/faculty"
             className="block py-2 text-gray-700 hover:text-maroon-600 font-medium"
             onClick={toggleMenu}
           >
             Faculty
           </Link>
-          {currentUser ? (
+          {loggedID != -1 ? (
             <>
-              <Link 
-                to={`/dashboard/${currentUser.uid}`} 
+              <Link
+                to={`/dashboard/${loggedID}`}
                 className="block py-2 text-gray-700 hover:text-maroon-600 font-medium"
                 onClick={toggleMenu}
               >
                 Dashboard
               </Link>
-              <button 
+              <button
                 onClick={() => {
                   signOut();
                   toggleMenu();
@@ -99,15 +129,15 @@ const Navbar: React.FC = () => {
             </>
           ) : (
             <>
-              <Link 
-                to="/login" 
+              <Link
+                to="/login"
                 className="block py-2 text-gray-700 hover:text-maroon-600 font-medium"
                 onClick={toggleMenu}
               >
                 Login
               </Link>
-              <Link 
-                to="/create-profile" 
+              <Link
+                to="/create-profile"
                 className="block py-2 text-gray-700 hover:text-maroon-600 font-medium"
                 onClick={toggleMenu}
               >
