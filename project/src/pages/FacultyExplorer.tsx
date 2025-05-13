@@ -101,8 +101,6 @@ const FacultyExplorer: React.FC = () => {
     .sort((a, b) => {
       if (sortBy === "name") {
         return a.name.localeCompare(b.name);
-      } else if (sortBy === "publications") {
-        return (b.publications || 0) - (a.publications || 0); // Handle potential undefined
       } else if (sortBy === "citations") {
         return b.citationCount - a.citationCount;
       } else if (sortBy === "hIndex") {
@@ -179,7 +177,6 @@ const FacultyExplorer: React.FC = () => {
               onChange={(e) => setSortBy(e.target.value)}
             >
               <option value="name">Sort by Name</option>
-              <option value="publications">Sort by Publications</option> {/* Now handled in sort logic */}
               <option value="citations">Sort by Citations</option>
               <option value="hIndex">Sort by h-index</option>
               <option value="i10Index">Sort by i10-index</option> {/* Added UI for i10Index */}

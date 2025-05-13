@@ -274,7 +274,7 @@ const ProfileCreation: React.FC = (props) => {
           </div>
 
           {/* Profile Picture */}
-          <div>
+          {/* <div>
             <label className="block text-sm font-medium text-gray-700">
               Profile Picture
             </label>
@@ -286,7 +286,7 @@ const ProfileCreation: React.FC = (props) => {
                 className="mt-2 h-20 w-20 object-cover rounded-full border"
               />
             )}
-          </div>
+          </div> */}
 
           {/* Buttons */}
           <div className="pt-5 flex justify-end">

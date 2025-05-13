@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
         <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
           <div className="sm:flex sm:items-center sm:justify-between">
             <div className="sm:flex sm:space-x-6">
-              <div className="flex-shrink-0">
+              {/* <div className="flex-shrink-0">
                 <img
                   className="h-24 w-24 rounded-full object-cover border-4 border-white shadow-lg"
                   src={
@@ -112,7 +112,7 @@ const Dashboard: React.FC = () => {
                   }
                   alt="Profile"
                 />
-              </div>
+              </div> */}
               <div className="mt-4 sm:mt-0">
                 <h1 className="text-2xl font-bold text-gray-900">
                   {profileData.name}

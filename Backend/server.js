@@ -232,7 +232,7 @@ app.post("/register", upload.single("profilePicture"), async (req, res) => {
         // User is registered, but scraping had issues
         message:
           "User registered successfully, but failed to scrape profile data. Please check the Google Scholar URL or try again later.",
-        userId: savedUser.user_id,
+        // userId: savedUser.user_id,
         scrapeStatus: "failed_profile_data",
       });
     }
@@ -285,7 +285,7 @@ app.post("/register", upload.single("profilePicture"), async (req, res) => {
       return res.status(201).json({
         // User registered, scraping done, no publications
         message: `User registered. Scraping successful, but no publications found for ${profileData.name}.`,
-        userId: savedUser.user_id,
+        // userId: savedUser.user_id,
         professorName: profileData.name,
         professorId: professorIdForPublications,
         insertedCount: 0,
