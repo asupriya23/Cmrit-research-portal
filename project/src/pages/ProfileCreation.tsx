@@ -127,25 +127,25 @@ const ProfileCreation: React.FC = (props) => {
 
   return (
     <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 bg-maroon-700 text-white">
-          <h2 className="text-xl font-semibold">Faculty Profile Creation</h2>
-          <p className="mt-1 text-sm">
+      <div className="bg-gray-800 shadow-xl rounded-xl overflow-hidden border border-gray-700">
+        <div className="px-6 py-5 bg-gradient-to-r from-maroon-600 to-maroon-800 text-white">
+          <h2 className="text-2xl font-semibold">Faculty Profile Creation</h2>
+          <p className="mt-1 text-sm text-gray-100">
             Create your research profile to showcase your academic work
           </p>
         </div>
 
         {error && (
-          <div className="m-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative flex items-center">
+          <div className="m-6 bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-lg relative flex items-center">
             <AlertCircle className="h-5 w-5 mr-2" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="px-4 py-5 sm:p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="px-6 py-6 space-y-6">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Name
             </label>
             <input
@@ -153,13 +153,14 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.name}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
+              placeholder="Enter your full name"
             />
           </div>
 
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Email
             </label>
             <input
@@ -168,13 +169,14 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.email}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
+              placeholder="Enter your email address"
             />
           </div>
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Password
             </label>
             <input
@@ -183,13 +185,14 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.password}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
+              placeholder="Enter a password (min 6 characters)"
             />
           </div>
 
           {/* Confirm Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Confirm Password
             </label>
             <input
@@ -198,13 +201,14 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.confirmPassword}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
+              placeholder="Confirm your password"
             />
           </div>
 
           {/* Department */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Department
             </label>
             <select
@@ -212,7 +216,7 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.department}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
             >
               <option value="">Select department</option>
               {departments.map((dept) => (
@@ -225,7 +229,7 @@ const ProfileCreation: React.FC = (props) => {
 
           {/* Designation */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Designation
             </label>
             <select
@@ -233,7 +237,7 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.designation}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
             >
               <option value="">Select designation</option>
               {designations.map((desig) => (
@@ -246,21 +250,22 @@ const ProfileCreation: React.FC = (props) => {
 
           {/* Introduction */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Introduction
             </label>
             <textarea
               name="introduction"
               value={formData.introduction}
               onChange={handleInputChange}
-              rows={3}
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              rows={4}
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors resize-none"
+              placeholder="Brief introduction about yourself and your research interests"
             ></textarea>
           </div>
 
           {/* Scholar Profile URL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Google Scholar Profile URL
             </label>
             <input
@@ -269,13 +274,14 @@ const ProfileCreation: React.FC = (props) => {
               value={formData.scholarProfileUrl}
               onChange={handleInputChange}
               required
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full px-4 py-3 border border-gray-600 bg-gray-700 text-gray-100 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-colors"
+              placeholder="https://scholar.google.com/citations?user=..."
             />
           </div>
 
           {/* Profile Picture */}
           {/* <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               Profile Picture
             </label>
             <input type="file" accept="image/*" onChange={handleFileChange} />
@@ -289,18 +295,18 @@ const ProfileCreation: React.FC = (props) => {
           </div> */}
 
           {/* Buttons */}
-          <div className="pt-5 flex justify-end">
+          <div className="pt-5 flex justify-end gap-4">
             <button
               type="button"
               onClick={() => navigate("/")}
-              className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm text-gray-700 hover:bg-gray-50"
+              className="px-6 py-3 border border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-maroon-600 hover:bg-maroon-700 disabled:opacity-50"
+              className="px-6 py-3 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-maroon-600 hover:bg-maroon-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors duration-200"
             >
               {loading ? "Creating..." : "Create Profile"}
             </button>

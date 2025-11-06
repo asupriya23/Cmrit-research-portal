@@ -8,6 +8,7 @@ import {
   Award,
   Telescope,
 } from "lucide-react";
+import Leaderboard from "../components/Leaderboard";
 
 const collegeImages = [
   "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg",
@@ -70,13 +71,13 @@ const LandingPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link
                     to="/create-profile"
-                    className="bg-maroon-600 hover:bg-maroon-700 text-white font-semibold py-3 px-6 rounded-md transition-colors duration-300"
+                    className="bg-maroon-600 hover:bg-maroon-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl"
                   >
                     Create Profile
                   </Link>
                   <Link
                     to="/faculty"
-                    className="bg-gold-500 hover:bg-gold-600 text-gray-900 font-semibold py-3 px-6 rounded-md transition-colors duration-300"
+                    className="bg-gold-500 hover:bg-gold-600 text-gray-900 font-semibold py-3 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl"
                   >
                     Explore Faculty
                   </Link>
@@ -118,13 +119,13 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* About Section */}
-      <section className="py-16 px-4 max-w-7xl mx-auto">
+      <section className="py-16 px-4 max-w-7xl mx-auto bg-gray-900">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4 text-gray-800">
+          <h2 className="text-3xl font-bold mb-4 text-gray-100">
             About CMRIT Research
           </h2>
-          <div className="w-20 h-1 bg-maroon-600 mx-auto mb-8"></div>
-          <p className="max-w-3xl mx-auto text-lg text-gray-600 leading-relaxed">
+          <div className="w-20 h-1 bg-maroon-500 mx-auto mb-8"></div>
+          <p className="max-w-3xl mx-auto text-lg text-gray-300 leading-relaxed">
             CMRIT is dedicated to fostering a culture of innovation and research
             excellence. Our faculty members are engaged in groundbreaking
             research across various disciplines, contributing significantly to
@@ -133,52 +134,52 @@ const LandingPage: React.FC = () => {
         </div>
 
         {/* Features */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12">
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="text-maroon-600 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
+          <div className="bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 border border-gray-700">
+            <div className="text-maroon-400 mb-4">
               <BookOpen className="w-12 h-12 mx-auto" />
             </div>
-            <h3 className="text-xl font-semibold text-center mb-3">
+            <h3 className="text-xl font-semibold text-center mb-3 text-gray-100">
               Academic Excellence
             </h3>
-            <p className="text-gray-600 text-center">
+            <p className="text-gray-400 text-center">
               Pioneering research initiatives across multiple disciplines.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="text-maroon-600 mb-4">
+          <div className="bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 border border-gray-700">
+            <div className="text-maroon-400 mb-4">
               <Users className="w-12 h-12 mx-auto" />
             </div>
-            <h3 className="text-xl font-semibold text-center mb-3">
+            <h3 className="text-xl font-semibold text-center mb-3 text-gray-100">
               Collaborative Network
             </h3>
-            <p className="text-gray-600 text-center">
+            <p className="text-gray-400 text-center">
               Building partnerships with global institutions and industry
               leaders.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="text-maroon-600 mb-4">
+          <div className="bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 border border-gray-700">
+            <div className="text-maroon-400 mb-4">
               <Award className="w-12 h-12 mx-auto" />
             </div>
-            <h3 className="text-xl font-semibold text-center mb-3">
+            <h3 className="text-xl font-semibold text-center mb-3 text-gray-100">
               Recognition
             </h3>
-            <p className="text-gray-600 text-center">
+            <p className="text-gray-400 text-center">
               Celebrating scholarly achievements and research excellence.
             </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="text-maroon-600 mb-4">
+          <div className="bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 border border-gray-700">
+            <div className="text-maroon-400 mb-4">
               <Telescope className="w-12 h-12 mx-auto" />
             </div>
-            <h3 className="text-xl font-semibold text-center mb-3">
+            <h3 className="text-xl font-semibold text-center mb-3 text-gray-100">
               Innovation
             </h3>
-            <p className="text-gray-600 text-center">
+            <p className="text-gray-400 text-center">
               Developing cutting-edge solutions to complex problems.
             </p>
           </div>
@@ -186,9 +187,9 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Research Vision */}
-      <section className="py-16 bg-gray-100">
+      <section className="py-16 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="bg-gray-700 rounded-xl shadow-xl overflow-hidden border border-gray-600">
             <div className="md:flex">
               <div className="md:w-1/2">
                 <img
@@ -198,17 +199,17 @@ const LandingPage: React.FC = () => {
                 />
               </div>
               <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
-                <h2 className="text-3xl font-bold mb-6 text-gray-800">
+                <h2 className="text-3xl font-bold mb-6 text-gray-100">
                   Our Research Vision
                 </h2>
-                <p className="text-gray-600 mb-6 leading-relaxed">
+                <p className="text-gray-300 mb-6 leading-relaxed">
                   CMRIT envisions becoming a center of excellence in research
                   and innovation, fostering an environment where faculty and
                   students can pursue cutting-edge research that addresses
                   real-world challenges and contributes to society's
                   advancement.
                 </p>
-                <p className="text-gray-600 mb-8 leading-relaxed">
+                <p className="text-gray-300 mb-8 leading-relaxed">
                   We strive to create a vibrant research ecosystem that promotes
                   interdisciplinary collaboration, critical thinking, and the
                   pursuit of knowledge that transcends traditional boundaries.
@@ -216,7 +217,7 @@ const LandingPage: React.FC = () => {
                 <div>
                   <Link
                     to="/faculty"
-                    className="inline-block bg-maroon-600 hover:bg-maroon-700 text-white font-semibold py-2 px-6 rounded-md transition-colors duration-300"
+                    className="inline-block bg-maroon-600 hover:bg-maroon-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-300 shadow-lg hover:shadow-xl"
                   >
                     Meet Our Researchers
                   </Link>
@@ -224,6 +225,21 @@ const LandingPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Leaderboard Section */}
+      <section className="py-16 px-4 bg-gray-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-100 mb-4">
+              Research Excellence
+            </h2>
+            <p className="text-gray-400">
+              Celebrating our top researchers and most active departments
+            </p>
+          </div>
+          <Leaderboard limit={5} />
         </div>
       </section>
 
@@ -241,13 +257,13 @@ const LandingPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/create-profile"
-              className="bg-white text-maroon-700 hover:bg-gray-100 font-semibold py-3 px-6 rounded-md transition-colors duration-300"
+              className="bg-white text-maroon-700 hover:bg-gray-100 font-semibold py-3 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl"
             >
               Create Profile
             </Link>
             <Link
               to="/faculty"
-              className="bg-gold-500 hover:bg-gold-600 text-gray-900 font-semibold py-3 px-6 rounded-md transition-colors duration-300"
+              className="bg-gold-500 hover:bg-gold-600 text-gray-900 font-semibold py-3 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl"
             >
               Explore Faculty
             </Link>

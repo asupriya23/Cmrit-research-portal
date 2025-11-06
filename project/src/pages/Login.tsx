@@ -26,6 +26,12 @@ const Login: React.FC = (props) => {
       const { userId } = response.data;
       console.log(userId);
       setLoggedID(userId);
+      // Persist logged in user id for UI-level checks (e.g., show delete)
+      try {
+        localStorage.setItem('userId', String(userId));
+      } catch (e) {
+        console.warn('Unable to persist userId to localStorage', e);
+      }
       navigate(`/dashboard/${userId}`);
     } catch (err) {
       setError("Failed to sign in. Please check your credentials.");
@@ -36,20 +42,20 @@ const Login: React.FC = (props) => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-900">
+      <div className="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-xl shadow-xl border border-gray-700">
         <div>
           <div className="flex justify-center">
-            <GraduationCap className="h-12 w-12 text-maroon-600" />
+            <GraduationCap className="h-12 w-12 text-maroon-400" />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold text-gray-100">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-400">
             Or{" "}
             <Link
               to="/create-profile"
-              className="font-medium text-maroon-600 hover:text-maroon-500"
+              className="font-medium text-maroon-400 hover:text-maroon-300 transition-colors"
             >
               create your faculty profile
             </Link>
@@ -58,7 +64,7 @@ const Login: React.FC = (props) => {
 
         {error && (
           <div
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
+            className="bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-lg relative flex items-center"
             role="alert"
           >
             <span className="block sm:inline">{error}</span>
@@ -66,7 +72,7 @@ const Login: React.FC = (props) => {
         )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="email-address" className="sr-only">
                 Email address
@@ -79,7 +85,7 @@ const Login: React.FC = (props) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-maroon-500 focus:border-maroon-500 focus:z-10 sm:text-sm"
+                className="appearance-none relative block w-full px-4 py-3 border border-gray-600 bg-gray-700 placeholder-gray-400 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 sm:text-sm transition-colors"
                 placeholder="Email address"
               />
             </div>
@@ -95,7 +101,7 @@ const Login: React.FC = (props) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-maroon-500 focus:border-maroon-500 focus:z-10 sm:text-sm"
+                className="appearance-none relative block w-full px-4 py-3 border border-gray-600 bg-gray-700 placeholder-gray-400 text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 sm:text-sm transition-colors"
                 placeholder="Password"
               />
             </div>
@@ -105,7 +111,7 @@ const Login: React.FC = (props) => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-maroon-600 hover:bg-maroon-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-maroon-500 disabled:bg-maroon-400 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-maroon-600 hover:bg-maroon-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-maroon-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors duration-200"
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>
