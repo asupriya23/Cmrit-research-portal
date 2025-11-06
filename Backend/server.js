@@ -9,6 +9,8 @@ const path = require("path");
 const dotenv = require("dotenv");
 const { MongoClient, MongoNetworkError } = require("mongodb");
 const cors = require("cors");
+const nodemailer = require("nodemailer");
+const cron = require("node-cron");
 
 // --- Load Environment Variables ---
 dotenv.config();
@@ -812,6 +814,514 @@ app.get("/details/:profId", async (req, res) => {
       .json({ message: "Server Error processing faculty details" });
   }
 });
+
+// --- Analytics Endpoints ---
+
+// Get publication trends for a faculty (papers per year)
+app.get("/api/analytics/faculty/:userId/trends", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+
+    const publications = await Publication.find({ user_id: userId });
+    
+    // Group by year
+    const yearCounts = {};
+    publications.forEach(pub => {
+      const year = pub.paper_year || "Unknown";
+      yearCounts[year] = (yearCounts[year] || 0) + 1;
+    });
+
+    const trends = Object.keys(yearCounts)
+      .filter(year => year !== "Unknown" && !isNaN(parseInt(year)))
+      .sort()
+      .map(year => ({ year: parseInt(year), count: yearCounts[year] }));
+
+    res.json({ userId, trends });
+  } catch (error) {
+    console.error("Error fetching publication trends:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get research topics/keywords for a faculty (extracted from publication titles)
+app.get("/api/analytics/faculty/:userId/topics", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+
+    const publications = await Publication.find({ user_id: userId });
+    
+    // Simple keyword extraction from titles (case-insensitive, common words filtered)
+    const stopWords = new Set(['a', 'an', 'the', 'in', 'on', 'at', 'for', 'to', 'of', 'and', 'or', 'with', 'using', 'based', 'by', 'from', 'as', 'is', 'are', 'was', 'were']);
+    const wordCounts = {};
+    
+    publications.forEach(pub => {
+      const title = (pub.paper_title || "").toLowerCase();
+      const words = title.split(/\W+/).filter(w => w.length > 3 && !stopWords.has(w));
+      words.forEach(word => {
+        wordCounts[word] = (wordCounts[word] || 0) + 1;
+      });
+    });
+
+    // Get top 10 keywords
+    const topics = Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([word, count]) => ({ topic: word, count }));
+
+    res.json({ userId, topics });
+  } catch (error) {
+    console.error("Error extracting topics:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get department-level analytics
+app.get("/api/analytics/department/:department", async (req, res) => {
+  try {
+    const department = req.params.department;
+    
+    // Get all faculty in department
+    const facultyMembers = await User.find({ department });
+    
+    if (facultyMembers.length === 0) {
+      return res.status(404).json({ message: "No faculty found in department" });
+    }
+
+    // Calculate aggregates
+    const totalCitations = facultyMembers.reduce((sum, f) => sum + (f.citationCount || 0), 0);
+    const avgHIndex = facultyMembers.reduce((sum, f) => sum + (f.hIndex || 0), 0) / facultyMembers.length;
+    const avgI10Index = facultyMembers.reduce((sum, f) => sum + (f.i10Index || 0), 0) / facultyMembers.length;
+    
+    // Get all publications for the department
+    const userIds = facultyMembers.map(f => f.user_id);
+    const publications = await Publication.find({ user_id: { $in: userIds } });
+    
+    // Publication trends by year
+    const yearCounts = {};
+    publications.forEach(pub => {
+      const year = pub.paper_year;
+      if (year && !isNaN(parseInt(year))) {
+        yearCounts[year] = (yearCounts[year] || 0) + 1;
+      }
+    });
+    
+    const publicationTrends = Object.keys(yearCounts)
+      .sort()
+      .map(year => ({ year: parseInt(year), count: yearCounts[year] }));
+
+    // Extract department-wide topics
+    const stopWords = new Set(['a', 'an', 'the', 'in', 'on', 'at', 'for', 'to', 'of', 'and', 'or', 'with', 'using', 'based', 'by', 'from', 'as', 'is', 'are', 'was', 'were']);
+    const wordCounts = {};
+    
+    publications.forEach(pub => {
+      const title = (pub.paper_title || "").toLowerCase();
+      const words = title.split(/\W+/).filter(w => w.length > 3 && !stopWords.has(w));
+      words.forEach(word => {
+        wordCounts[word] = (wordCounts[word] || 0) + 1;
+      });
+    });
+
+    const topTopics = Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([word, count]) => ({ topic: word, count }));
+
+    res.json({
+      department,
+      facultyCount: facultyMembers.length,
+      totalPublications: publications.length,
+      totalCitations,
+      avgHIndex: Math.round(avgHIndex * 10) / 10,
+      avgI10Index: Math.round(avgI10Index * 10) / 10,
+      publicationTrends,
+      topTopics
+    });
+  } catch (error) {
+    console.error("Error fetching department analytics:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get comparison data for multiple faculty
+app.post("/api/analytics/compare", async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    
+    if (!Array.isArray(userIds) || userIds.length < 2) {
+      return res.status(400).json({ message: "Provide at least 2 userIds in array" });
+    }
+
+    const numericIds = userIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    
+    const facultyData = await Promise.all(numericIds.map(async (userId) => {
+      const user = await User.findOne({ user_id: userId });
+      if (!user) return null;
+
+      const publications = await Publication.find({ user_id: userId });
+      
+      // Publication trends
+      const yearCounts = {};
+      publications.forEach(pub => {
+        const year = pub.paper_year;
+        if (year && !isNaN(parseInt(year))) {
+          yearCounts[year] = (yearCounts[year] || 0) + 1;
+        }
+      });
+      
+      const trends = Object.keys(yearCounts)
+        .sort()
+        .map(year => ({ year: parseInt(year), count: yearCounts[year] }));
+
+      return {
+        userId: user.user_id,
+        name: user.name,
+        department: user.department,
+        designation: user.designation,
+        citationCount: user.citationCount || 0,
+        hIndex: user.hIndex || 0,
+        i10Index: user.i10Index || 0,
+        publicationCount: publications.length,
+        publicationTrends: trends
+      };
+    }));
+
+    const validData = facultyData.filter(d => d !== null);
+    res.json({ comparison: validData });
+  } catch (error) {
+    console.error("Error in comparison endpoint:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get top researchers leaderboard
+app.get("/api/analytics/leaderboard/top-researchers", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    
+    // Get top researchers by citation count
+    const topByCitations = await User.find()
+      .sort({ citationCount: -1 })
+      .limit(limit)
+      .select('user_id name department designation citationCount hIndex i10Index profilePic');
+    
+    res.json({ topResearchers: topByCitations });
+  } catch (error) {
+    console.error("Error fetching top researchers:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get most active department
+app.get("/api/analytics/leaderboard/most-active-department", async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const year = req.query.year ? parseInt(req.query.year) : currentYear;
+    
+    // Get all publications for the specified year
+    const publications = await Publication.find({ 
+      paper_year: year.toString() 
+    });
+    
+    // Get user_ids from publications
+    const userIds = [...new Set(publications.map(p => p.user_id))];
+    
+    // Get users and group by department
+    const users = await User.find({ user_id: { $in: userIds } });
+    
+    const departmentStats = {};
+    
+    users.forEach(user => {
+      const dept = user.department || 'Unknown';
+      if (!departmentStats[dept]) {
+        departmentStats[dept] = {
+          department: dept,
+          publicationsThisYear: 0,
+          facultyCount: 0,
+          totalCitations: user.citationCount || 0,
+          avgHIndex: user.hIndex || 0
+        };
+      }
+      departmentStats[dept].facultyCount++;
+      departmentStats[dept].totalCitations += (user.citationCount || 0);
+      departmentStats[dept].avgHIndex += (user.hIndex || 0);
+    });
+    
+    // Count publications per department
+    publications.forEach(pub => {
+      const user = users.find(u => u.user_id === pub.user_id);
+      if (user && user.department) {
+        const dept = user.department;
+        if (departmentStats[dept]) {
+          departmentStats[dept].publicationsThisYear++;
+        }
+      }
+    });
+    
+    // Calculate averages and sort
+    const departmentList = Object.values(departmentStats).map(dept => ({
+      ...dept,
+      avgHIndex: dept.facultyCount > 0 ? Math.round((dept.avgHIndex / dept.facultyCount) * 10) / 10 : 0
+    })).sort((a, b) => b.publicationsThisYear - a.publicationsThisYear);
+    
+    res.json({ 
+      year,
+      mostActiveDepartment: departmentList.length > 0 ? departmentList[0] : null,
+      allDepartments: departmentList
+    });
+  } catch (error) {
+    console.error("Error fetching most active department:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// --- Email Configuration ---
+const transporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE || 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD
+  }
+});
+
+// Function to send monthly stats email
+const sendMonthlyStatsEmail = async (user, publications) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const thisYearPubs = publications.filter(p => p.paper_year === currentYear.toString());
+    const totalCitations = publications.reduce((sum, p) => sum + (p.paper_citations || 0), 0);
+    
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Your Monthly Research Statistics',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">Your Research Statistics Update</h2>
+          <p>Dear ${user.name},</p>
+          <p>Here's your monthly research statistics summary:</p>
+          
+          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">Overall Metrics</h3>
+            <p><strong>Total Publications:</strong> ${publications.length}</p>
+            <p><strong>Total Citations:</strong> ${user.citationCount || 0}</p>
+            <p><strong>h-index:</strong> ${user.hIndex || 0}</p>
+            <p><strong>i10-index:</strong> ${user.i10Index || 0}</p>
+          </div>
+          
+          <div style="background-color: #e0f2fe; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">This Year (${currentYear})</h3>
+            <p><strong>Publications:</strong> ${thisYearPubs.length}</p>
+          </div>
+          
+          ${publications.length > 0 ? `
+          <div style="margin: 20px 0;">
+            <h3>Your Top 3 Most Cited Publications</h3>
+            ${publications
+              .sort((a, b) => (b.paper_citations || 0) - (a.paper_citations || 0))
+              .slice(0, 3)
+              .map((pub, idx) => `
+                <div style="margin: 10px 0; padding: 10px; border-left: 3px solid #2563eb;">
+                  <p style="margin: 5px 0;"><strong>${idx + 1}. ${pub.paper_title}</strong></p>
+                  <p style="margin: 5px 0; color: #666;">Citations: ${pub.paper_citations || 0}</p>
+                </div>
+              `).join('')}
+          </div>
+          ` : ''}
+          
+          <p style="margin-top: 30px;">Keep up the great work!</p>
+          <p>Best regards,<br>CMRIT Research Portal Team</p>
+        </div>
+      `
+    };
+    
+    await transporter.sendMail(mailOptions);
+    console.log(`Email sent successfully to ${user.email}`);
+    return true;
+  } catch (error) {
+    console.error(`Error sending email to ${user.email}:`, error);
+    return false;
+  }
+};
+
+// Function to rescrape all faculty profiles
+const rescrapeAllProfiles = async () => {
+  console.log('Starting monthly auto-refresh of all faculty profiles...');
+  try {
+    const users = await User.find({ googleScholarId: { $exists: true, $ne: '' } });
+    console.log(`Found ${users.length} users to rescrape`);
+    
+    // Import scraper dynamically
+    const scrapeProfile = require('./scrapers/googleScholarScraper');
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        console.log(`Scraping profile for ${user.name} (${user.googleScholarId})...`);
+        const scrapedData = await scrapeProfile(user.googleScholarId);
+        
+        if (scrapedData) {
+          // Update user profile
+          user.citationCount = scrapedData.citationCount || user.citationCount;
+          user.hIndex = scrapedData.hIndex || user.hIndex;
+          user.i10Index = scrapedData.i10Index || user.i10Index;
+          await user.save();
+          
+          // Update publications
+          if (scrapedData.publications && scrapedData.publications.length > 0) {
+            for (const pub of scrapedData.publications) {
+              await Publication.findOneAndUpdate(
+                { 
+                  user_id: user.user_id, 
+                  paper_title: pub.paper_title 
+                },
+                {
+                  ...pub,
+                  user_id: user.user_id
+                },
+                { upsert: true, new: true }
+              );
+            }
+          }
+          
+          successCount++;
+          console.log(`Successfully updated profile for ${user.name}`);
+        } else {
+          errorCount++;
+          console.log(`Failed to scrape data for ${user.name}`);
+        }
+        
+        // Add delay to avoid overwhelming Google Scholar
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } catch (error) {
+        errorCount++;
+        console.error(`Error scraping ${user.name}:`, error.message);
+      }
+    }
+    
+    console.log(`Auto-refresh completed. Success: ${successCount}, Errors: ${errorCount}`);
+  } catch (error) {
+    console.error('Error in auto-refresh cron job:', error);
+  }
+};
+
+// Manual endpoint to trigger rescrape
+app.post("/api/admin/rescrape-all", async (req, res) => {
+  try {
+    // Start async process
+    rescrapeAllProfiles();
+    res.json({ message: "Rescrape process started. This may take several minutes." });
+  } catch (error) {
+    console.error("Error starting rescrape:", error);
+    res.status(500).json({ message: "Failed to start rescrape process" });
+  }
+});
+
+// Manual endpoint to send monthly email to specific user
+app.post("/api/admin/send-stats-email/:userId", async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const user = await User.findOne({ user_id: userId });
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    if (!user.email) {
+      return res.status(400).json({ message: "User has no email address" });
+    }
+    
+    const publications = await Publication.find({ user_id: userId });
+    const emailSent = await sendMonthlyStatsEmail(user, publications);
+    
+    if (emailSent) {
+      res.json({ message: `Email sent successfully to ${user.email}` });
+    } else {
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  } catch (error) {
+    console.error("Error sending stats email:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Endpoint to send monthly emails to all faculty
+app.post("/api/admin/send-all-stats-emails", async (req, res) => {
+  try {
+    const users = await User.find({ email: { $exists: true, $ne: '' } });
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        const publications = await Publication.find({ user_id: user.user_id });
+        const emailSent = await sendMonthlyStatsEmail(user, publications);
+        
+        if (emailSent) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+        
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        errorCount++;
+        console.error(`Error sending email to ${user.email}:`, error);
+      }
+    }
+    
+    res.json({ 
+      message: `Email process completed. Sent: ${successCount}, Failed: ${errorCount}`,
+      successCount,
+      errorCount
+    });
+  } catch (error) {
+    console.error("Error sending all stats emails:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// --- Cron Jobs ---
+// Schedule monthly rescrape on 1st of every month at 2 AM
+cron.schedule('0 2 1 * *', () => {
+  console.log('Running scheduled monthly rescrape...');
+  rescrapeAllProfiles();
+});
+
+// Schedule monthly email on 1st of every month at 9 AM
+cron.schedule('0 9 1 * *', async () => {
+  console.log('Sending monthly stats emails...');
+  try {
+    const users = await User.find({ email: { $exists: true, $ne: '' } });
+    
+    for (const user of users) {
+      try {
+        const publications = await Publication.find({ user_id: user.user_id });
+        await sendMonthlyStatsEmail(user, publications);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`Error sending email to ${user.email}:`, error);
+      }
+    }
+    
+    console.log('Monthly stats emails sent');
+  } catch (error) {
+    console.error('Error in monthly email cron job:', error);
+  }
+});
+
+console.log('Cron jobs scheduled:');
+console.log('- Monthly rescrape: 1st of every month at 2:00 AM');
+console.log('- Monthly emails: 1st of every month at 9:00 AM');
 
 // --- Simple Root Route (Optional) ---
 app.get("/", (req, res) => {
