@@ -687,6 +687,68 @@ app.get("/api/getAllFaculty", async (req, res) => {
   }
 });
 
+// Delete a user/profile and their publications
+// This route accepts either a valid JWT in Authorization header, or a
+// local header 'x-local-userid' containing the numeric user_id for dev flows.
+app.delete("/api/users/:userId", async (req, res) => {
+  try {
+    const userIdParam = parseInt(req.params.userId, 10);
+    if (isNaN(userIdParam)) {
+      return res.status(400).json({ message: "Invalid userId parameter" });
+    }
+
+    let requesterNumericId = null;
+
+    // Try Authorization header (Bearer token)
+    const authHeader = req.header("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        // Payload shapes can vary; support a few common fields
+        if (payload.user_id && typeof payload.user_id === "number") requesterNumericId = payload.user_id;
+        if (!requesterNumericId && payload.userId && typeof payload.userId === "number") requesterNumericId = payload.userId;
+        if (!requesterNumericId && payload.userId && typeof payload.userId === "string") {
+          const found = await User.findOne({ _id: payload.userId });
+          if (found) requesterNumericId = found.user_id;
+        }
+      } catch (err) {
+        // Token invalid or expired - fall-through to other checks
+        console.warn("Invalid token provided for deletion route");
+      }
+    }
+
+    // Fallback: allow a dev header 'x-local-userid' (numeric) so local UI can
+    // request deletion without a token. This is intentional for dev convenience.
+    if (!requesterNumericId) {
+      const localHeader = req.header("x-local-userid");
+      if (localHeader) {
+        const parsed = parseInt(localHeader, 10);
+        if (!isNaN(parsed)) requesterNumericId = parsed;
+      }
+    }
+
+    if (requesterNumericId !== userIdParam) {
+      return res.status(403).json({ message: "Forbidden: cannot delete another user's profile." });
+    }
+
+    // Delete publications associated with this numeric user id
+    await Publication.deleteMany({ user_id: userIdParam });
+
+    // Delete the user document
+    const deleteResult = await User.deleteOne({ user_id: userIdParam });
+
+    if (deleteResult.deletedCount === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({ message: "User and associated publications deleted" });
+  } catch (error) {
+    console.error("Error deleting user/profile:", error);
+    return res.status(500).json({ message: "Server error deleting user" });
+  }
+});
+
 app.get("/details/:profId", async (req, res) => {
   try {
     const profIdParam = req.params.profId;
