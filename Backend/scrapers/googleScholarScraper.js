@@ -22,8 +22,12 @@ const scrapeScholarProfile = async (url) => {
 
       // Use the document-level helper here
       const name = getTextFromDocument("#gsc_prf_in");
-      const affiliation = getTextFromDocument("#gsc_prf_ivh div.gsc_prf_il");
+      // Fixed affiliation selector - the correct path is #gsc_prf_i .gsc_prf_il
+      const affiliation = getTextFromDocument("#gsc_prf_i .gsc_prf_il") || 
+                          getTextFromDocument(".gsc_prf_il");
 
+      // Stats are in pairs: [All, All, All, Since2020, Since2020, Since2020]
+      // We want the "All" time stats which are indices 0, 1, 2
       const citationCount = getStat(0);
       const hIndex = getStat(1);
       const i10Index = getStat(2);
@@ -68,18 +72,18 @@ const scrapeScholarProfile = async (url) => {
       });
 
       const citationHistory = [];
-      const graphYears = document.querySelectorAll(".gsc_md_hist_b .gsc_g_t"); // Years are usually in spans with class gsc_g_t
+      const graphYears = document.querySelectorAll(".gsc_md_hist_b .gsc_g_t");
       const graphBars = document.querySelectorAll(".gsc_md_hist_b .gsc_g_al");
 
-      // Fallback to older selectors if modern ones aren't found or lengths don't match
+      // The bar count may be less than year count, so iterate safely
       graphYears.forEach((yearEl, index) => {
         const year = yearEl.textContent.trim();
-        const citations = graphBars[index].textContent.trim(); // The number on top of the bar
-        // const barHeightStyle = graphBars[index].style.height; // Could also get the actual height if needed, e.g., "10px"
-        if (year && citations) {
+        // Check if corresponding bar exists before accessing
+        const citations = graphBars[index] ? graphBars[index].textContent.trim() : "0";
+        if (year) {
           citationHistory.push({
-            year: parseInt(year),
-            citations: parseInt(citations),
+            year: parseInt(year) || 0,
+            citations: parseInt(citations) || 0,
           });
         }
       });

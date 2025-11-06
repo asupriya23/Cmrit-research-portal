@@ -40,7 +40,9 @@ const { runScrapeAndStoreService } = require("./scrape"); // Import the service
 const authenticate = require("./middleware/auth");
 
 // --- Import Scrapers ---
-const { scrapeScholarProfile } = require("./scrapers/googleScholarScraper");
+// NOTE: don't require the scraper (which pulls in Puppeteer) at top-level.
+// Lazy-require it inside routes so the server can start even if Puppeteer
+// is missing or not yet installed. See README or troubleshooting notes.
 
 // --- Initialize Express App ---
 const app = express();
@@ -222,7 +224,16 @@ app.post("/register", upload.single("profilePicture"), async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const profileData = await scrapeScholarProfile(scholarProfileUrl);
+      // Lazy-require the scraper to avoid crashing the server at startup
+      // if Puppeteer or its browser artifacts are not installed.
+      let profileData;
+      try {
+        const { scrapeScholarProfile } = require("./scrapers/googleScholarScraper");
+        profileData = await scrapeScholarProfile(scholarProfileUrl);
+      } catch (err) {
+        console.error("Failed to load scraper (deferred require):", err);
+        profileData = null;
+      }
 
     if (!profileData || !profileData.name) {
       console.error(
@@ -398,6 +409,8 @@ app.post("/login", async (req, res) => {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
+  let mongoClient = null;
+
   try {
     const user = await User.findOne({ email });
     if (!user) {
@@ -411,7 +424,7 @@ app.post("/login", async (req, res) => {
 
     // 1. Connect to MongoDB (using MongoClient for direct DB operations like counters)
     console.log(
-      "Connecting to MongoDB via MongoClient for registration operations..."
+      "Connecting to MongoDB via MongoClient for login operations..."
     );
     mongoClient = new MongoClient(MONGO_URI);
     await mongoClient.connect();
@@ -426,16 +439,25 @@ app.post("/login", async (req, res) => {
     console.log(
       `Starting scraping process for URL: ${scholarProfileUrl} associated with user ${email}`
     );
-    const profileData = await scrapeScholarProfile(scholarProfileUrl);
+
+    // Lazy-require the scraper here as well to avoid startup failures
+    let profileData;
+    try {
+      const { scrapeScholarProfile } = require("./scrapers/googleScholarScraper");
+      profileData = await scrapeScholarProfile(scholarProfileUrl);
+    } catch (err) {
+      console.error("Failed to load scraper (deferred require) during login path:", err);
+      profileData = null;
+    }
 
     if (!profileData || !profileData.name) {
       console.error(
         `Scraping Error: Failed to retrieve profile data or name for URL: ${scholarProfileUrl}`
       );
-      return res.status(201).json({
-        // User is registered, but scraping had issues
+      return res.status(200).json({
+        // User logged in, but scraping had issues
         message:
-          "User registered successfully, but failed to scrape profile data. Please check the Google Scholar URL or try again later.",
+          "User logged in successfully, but failed to scrape profile data. Please check the Google Scholar URL or try again later.",
         userId: savedUser.user_id,
         scrapeStatus: "failed_profile_data",
       });
@@ -455,9 +477,9 @@ app.post("/login", async (req, res) => {
       console.log(
         `No publications found for ${profileData.name}. Nothing to insert.`
       );
-      return res.status(201).json({
-        // User registered, scraping done, no publications
-        message: `User registered. Scraping successful, but no publications found for ${profileData.name}.`,
+      return res.status(200).json({
+        // User logged in, scraping done, no publications
+        message: `User logged in. Scraping successful, but no publications found for ${profileData.name}.`,
         userId: savedUser.user_id,
         professorName: profileData.name,
         professorId: professorIdForPublications,
@@ -490,9 +512,9 @@ app.post("/login", async (req, res) => {
       `Successfully inserted ${insertResult.insertedCount} documents into ${PUBLICATIONS_COLLECTION}.`
     );
 
-    return res.status(201).json({
+    return res.status(200).json({
       message: `User logged in with ID ${savedUser.user_id}. Successfully scraped and stored ${insertResult.insertedCount} publications.`,
-      userId: savedUser.user_id, // The auto-incremented ID of the registered user
+      userId: savedUser.user_id, // The auto-incremented ID of the logged-in user
       professorName: profileData.name, // Scraped professor's name
       professorId: professorIdForPublications, // ID associated with the scraped professor's publications
       insertedCount: insertResult.insertedCount,
@@ -501,6 +523,15 @@ app.post("/login", async (req, res) => {
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ error: "Server error during login" });
+  } finally {
+    if (mongoClient) {
+      try {
+        await mongoClient.close();
+        console.log("MongoClient connection closed (login route).");
+      } catch (closeError) {
+        console.error("Error closing MongoClient connection (login):", closeError);
+      }
+    }
   }
 });
 

@@ -1,5 +1,6 @@
 // services/scraperService.js
-const { scrapeScholarProfile } = require("./scrapers/googleScholarScraper"); // Adjust path as necessary
+// Lazy-require the actual scraper (which depends on Puppeteer) so this
+// service can be required/loaded without Puppeteer being installed.
 const { MongoClient } = require("mongodb");
 
 // Load MONGO_URI and DB_NAME from environment variables or a config file
@@ -18,7 +19,15 @@ async function runScrapeAndStoreService(scholarUrl, assignedUserId) {
   let mongoClient;
 
   try {
-    const profileData = await scrapeScholarProfile(scholarUrl);
+    // Require the scraper here so Puppeteer is only loaded when scraping is executed.
+    let profileData;
+    try {
+      const { scrapeScholarProfile } = require("./scrapers/googleScholarScraper");
+      profileData = await scrapeScholarProfile(scholarUrl);
+    } catch (err) {
+      console.error("runScrapeAndStoreService: failed to load scraper (deferred require):", err);
+      return { success: false, message: "Failed to load scraper: " + err.message };
+    }
 
     if (
       profileData &&
